@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Event Logs - Pixel Pets Focus</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    >
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <img
+          src="{{ url_for('assets', filename='nila/sit-idle-tail/sitidletail1.png') }}"
+          alt="Nila desktop pet"
+        >
+        <div>
+          <strong>Pixel Pets</strong>
+          <span>Focus companion</span>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Application navigation">
+        <a href="/">Overview</a>
+        <a class="active" href="/events">Event Logs</a>
+        <span>Pet Reactions <small>Coming soon</small></span>
+        <span>Settings <small>Coming soon</small></span>
+      </nav>
+    </aside>
+
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Event Logs</p>
+          <h1>Raw tracker events</h1>
+        </div>
+      </section>
+
+      <section class="panel events-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Live capture</p>
+            <h2>Latest captured events</h2>
+          </div>
+        </div>
+
+        <div class="event-list" id="eventList"></div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='event_logs.js') }}"></script>
+  </body>
+</html>

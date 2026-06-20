@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pixel Pets Focus</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    >
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <img
+          src="{{ url_for('assets', filename='nila/sit-idle-tail/sitidletail1.png') }}"
+          alt="Nila desktop pet"
+        >
+        <div>
+          <strong>Pixel Pets</strong>
+          <span>Focus companion</span>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Application navigation">
+        <a class="active" href="/">Overview</a>
+        <a href="/events">Event Logs</a>
+        <span>Pet Reactions <small>Coming soon</small></span>
+        <span>Settings <small>Coming soon</small></span>
+      </nav>
+    </aside>
+
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Overview</p>
+          <h1>Focus command center</h1>
+        </div>
+        <div class="goal-ring-card">
+          <div
+            class="goal-ring"
+            id="goalRing"
+            aria-label="Daily goal progress"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <span id="goalRingText">0%</span>
+          </div>
+          <div class="status-pill" id="goalStatus">Loading goal...</div>
+        </div>
+      </section>
+
+      <section class="metric-grid" aria-label="Focus metrics">
+        <article class="metric-card score-card">
+          <span class="label">Focus Score</span>
+          <strong id="focusScore">0</strong>
+          <small>Based on tracked productive time.</small>
+        </article>
+
+        <article class="metric-card">
+          <span class="label">Focus Streak</span>
+          <strong id="focusStreak">0 days</strong>
+          <small>Goal completed on consecutive days.</small>
+        </article>
+
+        <article class="metric-card">
+          <span class="label">Productive Time</span>
+          <strong id="productiveTime">0m</strong>
+          <small id="productiveSplit">No tracked activity yet.</small>
+        </article>
+
+        <article class="metric-card">
+          <span class="label">Non Productive</span>
+          <strong id="nonProductiveTime">0m</strong>
+          <small>Time in distracting windows.</small>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel goal-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Daily intent</p>
+              <h2>Set today's goal</h2>
+            </div>
+          </div>
+
+          <form class="goal-form" id="goalForm">
+            <label>
+              Goal
+              <input
+                id="goalText"
+                type="text"
+                maxlength="90"
+                placeholder="Finish the project report"
+                required
+              >
+            </label>
+
+            <label>
+              Target focus hours
+              <input
+                id="goalHours"
+                type="number"
+                min="0.5"
+                max="14"
+                step="0.5"
+                value="4"
+                required
+              >
+            </label>
+
+            <button type="submit">Save goal</button>
+          </form>
+
+          <div class="goal-summary" id="goalSummary">
+            Set a goal to guide today's focus.
+          </div>
+
+          <div class="goal-progress" id="goalProgress">
+            <div class="goal-progress-meta">
+              <span>Goal progress</span>
+              <strong id="goalProgressText">0%</strong>
+            </div>
+            <div
+              class="goal-progress-track"
+              aria-label="Daily goal progress"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              id="goalProgressBar"
+            >
+              <span id="goalProgressFill"></span>
+            </div>
+            <p id="goalProgressDetail">Set a goal to track progress.</p>
+          </div>
+        </article>
+
+        <article class="panel session-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Focus session</p>
+              <h2>Start a session</h2>
+            </div>
+          </div>
+
+          <form class="session-form" id="sessionForm">
+            <label>
+              Task
+              <input
+                id="sessionTask"
+                type="text"
+                maxlength="80"
+                placeholder="Read chapter 3"
+                required
+              >
+            </label>
+
+            <label>
+              Minutes
+              <input
+                id="sessionMinutes"
+                type="number"
+                min="5"
+                max="180"
+                step="5"
+                value="25"
+                required
+              >
+            </label>
+
+            <button type="submit">Create session</button>
+          </form>
+
+          <div class="timer-box">
+            <span id="sessionLabel">No active session</span>
+            <strong id="timerDisplay">00:00</strong>
+            <div class="timer-actions">
+              <button id="startSession" type="button" disabled>Start</button>
+              <button id="resetSession" type="button" disabled>Reset</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="analytics-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Window and tab usage</p>
+              <h2>Most used tabs</h2>
+            </div>
+          </div>
+          <div class="chart-list" id="topTitles"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Work rhythm</p>
+              <h2>AFK and active work graph</h2>
+            </div>
+          </div>
+          <div class="timeline-graph" id="timelineGraph"></div>
+        </article>
+      </section>
+
+      <section class="panel history-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Activity history</p>
+            <h2>Daily productive vs non productive time</h2>
+          </div>
+          <select id="historyRange" aria-label="History range">
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+          </select>
+        </div>
+
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Timeline</p>
+            <h2>AFK and active work timeline</h2>
+          </div>
+        </div>
+        <div class="timeline-list" id="timelineList"></div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
