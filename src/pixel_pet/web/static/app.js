@@ -1,3 +1,8 @@
+const clockTimeEl  = document.querySelector("#clockTime");
+const clockDateEl  = document.querySelector("#clockDate");
+const clockDateSub = document.querySelector("#clockDateSub");
+const greetingEl   = document.querySelector("#greeting");
+
 const goalForm = document.querySelector("#goalForm");
 const goalText = document.querySelector("#goalText");
 const goalHours = document.querySelector("#goalHours");
@@ -19,21 +24,6 @@ const focusStreak = document.querySelector("#focusStreak");
 const productiveTime = document.querySelector("#productiveTime");
 const nonProductiveTime = document.querySelector("#nonProductiveTime");
 const productiveSplit = document.querySelector("#productiveSplit");
-const sessionForm = document.querySelector("#sessionForm");
-const sessionTask = document.querySelector("#sessionTask");
-const sessionMinutes = document.querySelector("#sessionMinutes");
-const sessionLabel = document.querySelector("#sessionLabel");
-const timerDisplay = document.querySelector("#timerDisplay");
-const startSession = document.querySelector("#startSession");
-const resetSession = document.querySelector("#resetSession");
-
-let session = {
-  task: "",
-  totalSeconds: 0,
-  remainingSeconds: 0,
-  running: false,
-  timerId: null,
-};
 let currentGoal = null;
 
 function formatMinutes(minutes) {
@@ -45,13 +35,6 @@ function formatMinutes(minutes) {
   }
 
   return `${hours}h ${mins}m`;
-}
-
-function formatTimer(seconds) {
-  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
-  const remainingSeconds = (seconds % 60).toString().padStart(2, "0");
-
-  return `${minutes}:${remainingSeconds}`;
 }
 
 function formatDate(dateText) {
@@ -313,40 +296,6 @@ function formatEventType(eventType) {
     .join(" ");
 }
 
-function renderSession() {
-  timerDisplay.textContent = formatTimer(session.remainingSeconds);
-  startSession.disabled = session.totalSeconds === 0;
-  resetSession.disabled = session.totalSeconds === 0;
-
-  if (!session.task) {
-    sessionLabel.textContent = "No active session";
-    return;
-  }
-
-  sessionLabel.textContent = session.running
-    ? `Working on ${session.task}`
-    : `Ready: ${session.task}`;
-  startSession.textContent = session.running ? "Pause" : "Start";
-}
-
-function tickSession() {
-  if (!session.running) {
-    return;
-  }
-
-  session.remainingSeconds -= 1;
-
-  if (session.remainingSeconds <= 0) {
-    session.remainingSeconds = 0;
-    session.running = false;
-    window.clearInterval(session.timerId);
-    session.timerId = null;
-    sessionLabel.textContent = `Done: ${session.task}`;
-  }
-
-  renderSession();
-}
-
 goalForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -369,55 +318,32 @@ goalForm.addEventListener("submit", async (event) => {
 
 historyRange.addEventListener("change", loadSummary);
 
-sessionForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+function updateClock() {
+  const now = new Date();
+  const hour = now.getHours();
 
-  const plannedMinutes = Number(sessionMinutes.value);
-  const response = await fetch("/api/focus-sessions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      task: sessionTask.value.trim(),
-      planned_minutes: plannedMinutes,
-    }),
-  });
-  const data = await response.json();
-
-  session = {
-    task: data.session.task,
-    totalSeconds: data.session.planned_minutes * 60,
-    remainingSeconds: data.session.planned_minutes * 60,
-    running: false,
-    timerId: null,
-  };
-
-  renderSession();
-});
-
-startSession.addEventListener("click", () => {
-  session.running = !session.running;
-
-  if (session.running && !session.timerId) {
-    session.timerId = window.setInterval(tickSession, 1000);
+  if (clockTimeEl) {
+    clockTimeEl.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  renderSession();
-});
+  const fullDate = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+  const shortDate = now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 
-resetSession.addEventListener("click", () => {
-  session.running = false;
-  window.clearInterval(session.timerId);
-  session.timerId = null;
-  session.remainingSeconds = session.totalSeconds;
-  renderSession();
-});
+  if (clockDateEl)  clockDateEl.textContent  = fullDate;
+  if (clockDateSub) clockDateSub.textContent = shortDate;
+
+  if (greetingEl) {
+    const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    greetingEl.textContent = greet;
+  }
+}
 
 async function boot() {
+  updateClock();
+  window.setInterval(updateClock, 30000);
+
   await loadGoal();
   await loadSummary();
-  renderSession();
   window.setInterval(loadSummary, 15000);
 }
 

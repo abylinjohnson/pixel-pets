@@ -3,36 +3,75 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Event Logs - Pixel Pets Focus</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='styles.css') }}"
-    >
+    <title>Event Logs · Pixel Pets Focus</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
   <body>
     <aside class="sidebar">
       <div class="brand">
-        <img
-          src="{{ url_for('assets', filename='nila/sit-idle-tail/sitidletail1.png') }}"
-          alt="Nila desktop pet"
-        >
-        <div>
+        <div class="brand-avatar">
+          <img
+            src="{{ url_for('assets', filename='nila/sit-idle-tail/sitidletail1.png') }}"
+            alt="Nila"
+          >
+          <span class="brand-status" aria-hidden="true"></span>
+        </div>
+        <div class="brand-text">
           <strong>Pixel Pets</strong>
           <span>Focus companion</span>
         </div>
       </div>
 
-      <nav class="nav" aria-label="Application navigation">
-        <a href="/">Overview</a>
-        <a class="active" href="/events">Event Logs</a>
-        <span>Pet Reactions <small>Coming soon</small></span>
-        <span>Settings <small>Coming soon</small></span>
+      <nav class="nav" aria-label="Main navigation">
+        <div class="nav-section">Main</div>
+        <a href="/">
+          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="6" height="6" rx="1.5"/>
+            <rect x="10" y="2" width="6" height="6" rx="1.5"/>
+            <rect x="2" y="10" width="6" height="6" rx="1.5"/>
+            <rect x="10" y="10" width="6" height="6" rx="1.5"/>
+          </svg>
+          Overview
+        </a>
+        <a href="/focus">
+          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="9" r="6.5"/><circle cx="9" cy="9" r="2.5"/>
+          </svg>
+          Focus Session
+        </a>
+        <a class="active" href="/events">
+          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="9" r="6.5"/>
+            <polyline points="9 5.5 9 9 11.5 10.5"/>
+          </svg>
+          Event Logs
+        </a>
+        <div class="nav-section">Coming soon</div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 2.5C6.5 2.5 4.5 4.5 4.5 7c0 2 1.2 3.8 3 4.7L9 15l1.5-3.3c1.8-.9 3-2.7 3-4.7 0-2.5-2-4.5-4.5-4.5z"/>
+          </svg>
+          Pet Reactions
+          <span class="nav-badge">Soon</span>
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="9" r="2.5"/>
+            <path d="M9 2v1.5M9 14.5V16M2 9h1.5M14.5 9H16M4.2 4.2l1 1M12.8 12.8l1 1M4.2 13.8l1-1M12.8 5.2l1-1"/>
+          </svg>
+          Settings
+          <span class="nav-badge">Soon</span>
+        </div>
       </nav>
+
+      <div class="sidebar-footer">
+        <p class="sidebar-version">Pixel Pets · v0.1</p>
+      </div>
     </aside>
 
     <main class="shell">
       <section class="topbar">
-        <div>
+        <div class="headline-block">
           <p class="eyebrow">Event Logs</p>
           <h1>Raw tracker events</h1>
         </div>
@@ -42,10 +81,13 @@
         <div class="panel-heading">
           <div>
             <p class="eyebrow">Live capture</p>
-            <h2>Latest captured events</h2>
+            <h2>Latest events</h2>
+          </div>
+          <div class="live-badge" aria-label="Updating live">
+            <span class="live-dot" aria-hidden="true"></span>
+            Live
           </div>
         </div>
-
         <div class="event-list" id="eventList"></div>
       </section>
     </main>

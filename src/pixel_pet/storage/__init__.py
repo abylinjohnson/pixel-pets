@@ -1,19 +1,31 @@
 from .database import (
     create_focus_session,
+    end_focus_session,
     get_activity_summary,
     get_daily_goal,
+    get_focus_session,
     get_recent_events,
+    get_recent_focus_sessions,
+    get_session_analytics,
     init_db,
     save_daily_goal,
+    save_session_summary,
+    start_focus_session,
     store_event,
 )
 
 __all__ = [
     "create_focus_session",
+    "end_focus_session",
     "get_activity_summary",
     "get_daily_goal",
+    "get_focus_session",
     "get_recent_events",
+    "get_recent_focus_sessions",
+    "get_session_analytics",
     "init_db",
     "save_daily_goal",
+    "save_session_summary",
+    "start_focus_session",
     "store_event",
 ]

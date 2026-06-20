@@ -50,12 +50,32 @@ def init_db(db_path=DB_PATH):
             CREATE TABLE IF NOT EXISTS focus_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 task TEXT NOT NULL,
+                goal TEXT NOT NULL DEFAULT '',
                 planned_minutes INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
+                started_at TEXT,
+                ended_at TEXT,
                 status TEXT NOT NULL DEFAULT 'planned'
             );
             """
         )
+        _migrate_focus_sessions(connection)
+
+
+def _migrate_focus_sessions(connection):
+    """Add columns introduced after the initial schema without dropping existing data."""
+    for column, definition in [
+        ("goal",       "TEXT NOT NULL DEFAULT ''"),
+        ("started_at", "TEXT"),
+        ("ended_at",   "TEXT"),
+        ("summary",    "TEXT"),
+    ]:
+        try:
+            connection.execute(
+                f"ALTER TABLE focus_sessions ADD COLUMN {column} {definition}"
+            )
+        except Exception:
+            pass
 
 
 def store_event(event, db_path=DB_PATH):
@@ -153,7 +173,7 @@ def get_daily_goal(goal_date=None, db_path=DB_PATH):
     }
 
 
-def create_focus_session(task, planned_minutes, db_path=DB_PATH):
+def create_focus_session(task, planned_minutes, goal="", db_path=DB_PATH):
     init_db(db_path)
 
     created_at = _now_iso()
@@ -161,20 +181,157 @@ def create_focus_session(task, planned_minutes, db_path=DB_PATH):
     with _connect(db_path) as connection:
         cursor = connection.execute(
             """
-            INSERT INTO focus_sessions (task, planned_minutes, created_at)
-            VALUES (?, ?, ?)
+            INSERT INTO focus_sessions (task, goal, planned_minutes, created_at)
+            VALUES (?, ?, ?, ?)
             """,
-            (task, planned_minutes, created_at),
+            (task, goal, planned_minutes, created_at),
         )
-
         session_id = cursor.lastrowid
 
     return {
         "id": session_id,
         "task": task,
+        "goal": goal,
         "planned_minutes": planned_minutes,
         "created_at": created_at,
         "status": "planned",
+    }
+
+
+def start_focus_session(session_id, db_path=DB_PATH):
+    init_db(db_path)
+    with _connect(db_path) as connection:
+        connection.execute(
+            "UPDATE focus_sessions SET started_at = ?, status = 'active' WHERE id = ?",
+            (_now_iso(), session_id),
+        )
+
+
+def end_focus_session(session_id, db_path=DB_PATH):
+    init_db(db_path)
+    with _connect(db_path) as connection:
+        connection.execute(
+            "UPDATE focus_sessions SET ended_at = ?, status = 'completed' WHERE id = ?",
+            (_now_iso(), session_id),
+        )
+
+
+def save_session_summary(session_id, summary, db_path=DB_PATH):
+    """Store the AI-generated summary for a completed session."""
+    init_db(db_path)
+    with _connect(db_path) as connection:
+        connection.execute(
+            "UPDATE focus_sessions SET summary = ? WHERE id = ?",
+            (summary, session_id),
+        )
+
+
+def get_recent_focus_sessions(limit=10, db_path=DB_PATH):
+    """Return the N most recent focus sessions, newest first."""
+    init_db(db_path)
+    with _connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT id, task, goal, planned_minutes,
+                   started_at, ended_at, created_at, status
+            FROM focus_sessions
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_focus_session(session_id, db_path=DB_PATH):
+    init_db(db_path)
+    with _connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM focus_sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_session_analytics(session_id, db_path=DB_PATH):
+    """Compute focus, distraction, and window-usage stats for a completed session."""
+    session = get_focus_session(session_id, db_path)
+    if not session:
+        return None
+
+    started_at = session.get("started_at")
+    ended_at   = session.get("ended_at")
+
+    empty = {
+        "session": session,
+        "duration_minutes": 0,
+        "productive_minutes": 0,
+        "nonproductive_minutes": 0,
+        "focus_percentage": 0,
+        "distraction_count": 0,
+        "windows": [],
+        "timeline": [],
+    }
+
+    if not started_at:
+        return empty
+
+    # If the session is still active (no ended_at), use now as the window edge.
+    end_ts = ended_at or _now_iso()
+
+    start_dt = datetime.fromisoformat(started_at)
+    end_dt   = datetime.fromisoformat(end_ts)
+    duration_minutes = max(0, round((end_dt - start_dt).total_seconds() / 60))
+
+    with _connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT event_type, timestamp, payload
+            FROM activity_events
+            WHERE timestamp >= ? AND timestamp <= ?
+            ORDER BY timestamp ASC
+            """,
+            (started_at, end_ts),
+        ).fetchall()
+
+    segments = _build_window_segments(rows)
+
+    productive      = sum(s["minutes"] for s in segments if s["bucket"] == "productive")
+    nonproductive   = sum(s["minutes"] for s in segments if s["bucket"] == "nonproductive")
+    total_tracked   = productive + nonproductive
+    focus_pct       = round(productive / total_tracked * 100) if total_tracked else 0
+    distraction_cnt = sum(1 for s in segments if s["bucket"] == "nonproductive")
+
+    timeline = []
+    for s in segments[-30:]:
+        p = s["payload"]
+        timeline.append({
+            "title":        p.get("title") or "Untitled",
+            "process_name": p.get("process_name") or "Unknown",
+            "minutes":      s["minutes"],
+            "bucket":       s["bucket"],
+            "started_at":   s["started_at"],
+        })
+
+    return {
+        "session": {
+            "id":              session["id"],
+            "task":            session["task"],
+            "goal":            session.get("goal", ""),
+            "planned_minutes": session["planned_minutes"],
+            "created_at":      session.get("created_at"),
+            "started_at":      started_at,
+            "ended_at":        ended_at,
+            "status":          session.get("status", "completed"),
+            "summary":         session.get("summary"),
+        },
+        "duration_minutes":     duration_minutes,
+        "productive_minutes":   productive,
+        "nonproductive_minutes": nonproductive,
+        "focus_percentage":     focus_pct,
+        "distraction_count":    distraction_cnt,
+        "windows":              _top_usage(segments, "title"),
+        "timeline":             timeline,
     }
 
 
