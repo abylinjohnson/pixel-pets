@@ -7,7 +7,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_ENV_FILES = (
     ".env",
-    ".pixel-pets.env",
     "src/pixel_pet/.env",
 )
 

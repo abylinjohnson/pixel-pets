@@ -102,14 +102,15 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 4. Add your OpenAI key (optional but recommended)
-#    Create a file named .pixel-pets.env in the project root:
-echo "OPENAI_API_KEY=sk-..." >> .pixel-pets.env
-echo "OPENAI_MODEL=gpt-4.1-mini" >> .pixel-pets.env
+#    Create a file named .env in the project root:
+echo "OPENAI_API_KEY=sk-..." >> .env
+echo "OPENAI_MODEL=gpt-4.1-mini" >> .env
 ```
 
 ### Configuration (environment variables)
 
-Loaded from `.env`, `.pixel-pets.env`, or `src/pixel_pet/.env` (first found wins):
+Loaded from `.env` or `src/pixel_pet/.env` (first found wins). `.env` is
+git-ignored, so your key never gets committed:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
