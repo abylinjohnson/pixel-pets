@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Event Logs · Pixel Pets Focus</title>
+  <title>Reminders · Pixel Pets</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 
@@ -41,7 +41,7 @@
         </svg>
         Focus Session
       </a>
-      <a href="/reminders">
+      <a class="active" href="/reminders">
         <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
           stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 2a5 5 0 00-5 5v2.5L2.5 12h13L14 9.5V7a5 5 0 00-5-5z" />
@@ -49,7 +49,7 @@
         </svg>
         Reminders
       </a>
-      <a class="active" href="/events">
+      <a href="/events">
         <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
           stroke-linecap="round" stroke-linejoin="round">
           <circle cx="9" cy="9" r="6.5" />
@@ -98,29 +98,86 @@
   </aside>
 
   <main class="shell">
-    <section class="topbar">
-      <div class="headline-block">
-        <p class="eyebrow">Event Logs</p>
-        <h1>Raw tracker events</h1>
-      </div>
-    </section>
+    <div class="reminder-page-hero">
+      <h1>Reminders</h1>
+      <p>Nila will nudge you when the time comes.</p>
+    </div>
 
-    <section class="panel events-panel">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">Live capture</p>
-          <h2>Latest events</h2>
-        </div>
-        <div class="live-badge" aria-label="Updating live">
-          <span class="live-dot" aria-hidden="true"></span>
-          Live
+    <div class="reminders-layout">
+
+      <!-- ── Add form ────────────────────────────────────────── -->
+      <div class="panel reminder-form-panel">
+        <div class="reminder-form-inner">
+
+          <!-- Once / Recurring toggle -->
+          <div class="type-tabs">
+            <button class="type-tab active" id="tabOnce">Once</button>
+            <button class="type-tab" id="tabRecurring">Recurring</button>
+          </div>
+
+          <!-- Big time picker -->
+          <div class="time-input-wrap">
+            <input type="time" class="time-input-big" id="reminderTime" value="09:00">
+          </div>
+
+          <!-- Once: date selector -->
+          <div id="onceOptions">
+            <label class="field-label" for="reminderDate">Date</label>
+            <input type="date" class="date-input" id="reminderDate">
+          </div>
+
+          <!-- Recurring: day-of-week chips -->
+          <div id="recurringOptions" hidden>
+            <label class="field-label">Repeat on</label>
+            <div class="day-chips">
+              <button class="day-chip" data-day="0">Mo</button>
+              <button class="day-chip" data-day="1">Tu</button>
+              <button class="day-chip" data-day="2">We</button>
+              <button class="day-chip" data-day="3">Th</button>
+              <button class="day-chip" data-day="4">Fr</button>
+              <button class="day-chip" data-day="5">Sa</button>
+              <button class="day-chip" data-day="6">Su</button>
+            </div>
+          </div>
+
+          <!-- Label -->
+          <div>
+            <label class="field-label" for="reminderLabel">Label</label>
+            <input type="text" class="reminder-label-input" id="reminderLabel" placeholder="e.g. Take a break"
+              maxlength="80">
+          </div>
+
+          <!-- Save -->
+          <button class="btn-primary reminder-save-btn" id="btnSaveReminder">
+            <svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round">
+              <circle cx="7.5" cy="7.5" r="6" />
+              <polyline points="7.5 4.5 7.5 7.5 9.5 9" />
+            </svg>
+            Save Reminder
+          </button>
+
+          <p class="reminder-form-note" id="reminderFormNote" hidden></p>
+
         </div>
       </div>
-      <div class="event-list" id="eventList"></div>
-    </section>
+
+      <!-- ── Reminder list ──────────────────────────────────── -->
+      <div class="panel reminder-list-panel">
+        <div class="reminder-list-header">
+          <div>
+            <p class="eyebrow">Scheduled</p>
+            <h3>Your reminders</h3>
+          </div>
+          <span class="distraction-badge" id="reminderCount" hidden>0</span>
+        </div>
+        <div id="reminderList"></div>
+      </div>
+
+    </div>
   </main>
 
-  <script src="{{ url_for('static', filename='event_logs.js') }}"></script>
+  <script src="{{ url_for('static', filename='reminders.js') }}"></script>
 </body>
 
 </html>

@@ -112,6 +112,11 @@ class PetBehaviorHandler:
             self.perform("laydown_meow")
             return
 
+        if behavior_key == "reminder_alert":
+            self.set_idle_action("sit_idle_tail")
+            self.perform("sit_lookup_meow")
+            return
+
         raise ValueError(f"Unknown pet behavior: {behavior_key}")
 
     def perform_sequence(self, steps):
@@ -170,3 +175,7 @@ class PetBehaviorHandler:
 
     def react_to_return(self):
         self.perform_behavior("return_greeting")
+
+    def remind(self, message: str) -> None:
+        self.perform_behavior("reminder_alert")
+        self.show_speech(f"Reminder: {message}", duration=15.0)

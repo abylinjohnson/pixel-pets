@@ -1,6 +1,5 @@
-import win32api
-
 from src.pixel_pet.activity.events import ActivityEvent, ActivityEventType
+from src.pixel_pet.platform_support import get_idle_seconds
 from src.pixel_pet.trackers.base_tracker import BaseTracker
 
 
@@ -38,8 +37,4 @@ class IdleTracker(BaseTracker):
         ]
 
     def _get_idle_seconds(self):
-        last_input_tick = win32api.GetLastInputInfo()
-        current_tick = win32api.GetTickCount()
-        idle_milliseconds = current_tick - last_input_tick
-
-        return idle_milliseconds / 1000
+        return get_idle_seconds()

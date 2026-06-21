@@ -8,6 +8,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = PROJECT_ROOT / "data"
 DB_PATH = DATA_DIR / "pixel_pet.db"
 
+_IST = timezone(timedelta(hours=5, minutes=30))
+
 NON_PRODUCTIVE_KEYWORDS = (
     "youtube",
     "netflix",
@@ -56,6 +58,18 @@ def init_db(db_path=DB_PATH):
                 started_at TEXT,
                 ended_at TEXT,
                 status TEXT NOT NULL DEFAULT 'planned'
+            );
+
+            CREATE TABLE IF NOT EXISTS reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                label TEXT NOT NULL,
+                reminder_type TEXT NOT NULL DEFAULT 'once',
+                remind_at TEXT,
+                days_of_week TEXT,
+                time_of_day TEXT,
+                active INTEGER NOT NULL DEFAULT 1,
+                last_triggered_at TEXT,
+                created_at TEXT NOT NULL
             );
             """
         )
@@ -243,6 +257,21 @@ def get_recent_focus_sessions(limit=10, db_path=DB_PATH):
     return [dict(row) for row in rows]
 
 
+def get_active_focus_session(db_path=DB_PATH):
+    """Return the in-progress focus session if one exists, else None."""
+    init_db(db_path)
+    with _connect(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT * FROM focus_sessions
+            WHERE status = 'active'
+            ORDER BY started_at DESC
+            LIMIT 1
+            """,
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def get_focus_session(session_id, db_path=DB_PATH):
     init_db(db_path)
     with _connect(db_path) as connection:
@@ -335,16 +364,114 @@ def get_session_analytics(session_id, db_path=DB_PATH):
     }
 
 
+def create_reminder(label, reminder_type="once", remind_at=None, days_of_week=None, time_of_day=None, db_path=DB_PATH):
+    init_db(db_path)
+    created_at = datetime.now(_IST).isoformat()
+    with _connect(db_path) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO reminders (label, reminder_type, remind_at, days_of_week, time_of_day, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (label, reminder_type, remind_at, days_of_week, time_of_day, created_at),
+        )
+        rid = cursor.lastrowid
+    return get_reminder(rid, db_path)
+
+
+def get_reminder(reminder_id, db_path=DB_PATH):
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_reminders(active_only=False, db_path=DB_PATH):
+    init_db(db_path)
+    query = "SELECT * FROM reminders"
+    if active_only:
+        query += " WHERE active = 1"
+    query += " ORDER BY created_at DESC"
+    with _connect(db_path) as conn:
+        rows = conn.execute(query).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_reminder(reminder_id, db_path=DB_PATH):
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
+
+
+def toggle_reminder(reminder_id, active, db_path=DB_PATH):
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE reminders SET active = ? WHERE id = ?",
+            (1 if active else 0, reminder_id),
+        )
+    return get_reminder(reminder_id, db_path)
+
+
+def mark_reminder_triggered(reminder_id, db_path=DB_PATH):
+    init_db(db_path)
+    now = datetime.now(_IST).isoformat()
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE reminders SET last_triggered_at = ? WHERE id = ?",
+            (now, reminder_id),
+        )
+
+
+def deactivate_reminder(reminder_id, db_path=DB_PATH):
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("UPDATE reminders SET active = 0 WHERE id = ?", (reminder_id,))
+
+
+def get_due_reminders(db_path=DB_PATH):
+    """Return all active reminders whose fire time has arrived (IST)."""
+    now = datetime.now(_IST)
+    due = []
+    for r in get_reminders(active_only=True, db_path=db_path):
+        if r["reminder_type"] == "once":
+            if not r["remind_at"] or r["last_triggered_at"]:
+                continue
+            remind_at = datetime.fromisoformat(r["remind_at"])
+            if remind_at.tzinfo is None:
+                remind_at = remind_at.replace(tzinfo=_IST)
+            if now >= remind_at:
+                due.append(r)
+
+        elif r["reminder_type"] == "recurring":
+            if not r["days_of_week"] or not r["time_of_day"]:
+                continue
+            weekdays = [int(d) for d in r["days_of_week"].split(",") if d.strip()]
+            if now.weekday() not in weekdays:
+                continue
+            h, m = map(int, r["time_of_day"].split(":"))
+            trigger = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            if now < trigger:
+                continue
+            if r["last_triggered_at"]:
+                last = datetime.fromisoformat(r["last_triggered_at"])
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=_IST)
+                if last.date() == now.date():
+                    continue
+            due.append(r)
+
+    return due
+
+
 def get_activity_summary(days=7, db_path=DB_PATH):
     init_db(db_path)
 
-    end_date = datetime.now(timezone.utc).date()
+    end_date = datetime.now(_IST).date()
     start_date = end_date - timedelta(days=days - 1)
-    start_timestamp = datetime.combine(
-        start_date,
-        datetime.min.time(),
-        tzinfo=timezone.utc,
-    )
+    # Use IST midnight as the cutoff so the SQL query includes all events
+    # that belong to start_date in IST (which may start at 18:30 UTC the prior day).
+    start_timestamp = datetime.combine(start_date, datetime.min.time(), tzinfo=_IST).astimezone(timezone.utc)
 
     with _connect(db_path) as connection:
         rows = connection.execute(
@@ -423,7 +550,9 @@ def _build_window_segments(rows):
 def _add_window_durations(window_segments, history):
     for segment in window_segments:
         started_at = datetime.fromisoformat(segment["started_at"])
-        date_key = started_at.date().isoformat()
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        date_key = started_at.astimezone(_IST).date().isoformat()
 
         if date_key in history:
             history[date_key][segment["bucket"]] += segment["minutes"]
@@ -587,9 +716,11 @@ def _build_afk_segments(rows):
 
 
 def _activity_bucket(payload):
-    title = payload.get("title", "").lower()
+    # Fold the URL (when captured) into the haystack — it's a far more reliable
+    # signal than the page title for analytics bucketing.
+    haystack = f"{payload.get('title', '')} {payload.get('url', '')}".lower()
 
-    if any(keyword in title for keyword in NON_PRODUCTIVE_KEYWORDS):
+    if any(keyword in haystack for keyword in NON_PRODUCTIVE_KEYWORDS):
         return "nonproductive"
 
     return "productive"
@@ -626,7 +757,7 @@ def _connect(db_path):
 
 
 def _today():
-    return datetime.now(timezone.utc).date().isoformat()
+    return datetime.now(_IST).date().isoformat()
 
 
 def _now_iso():

@@ -20,7 +20,6 @@ const topTitles = document.querySelector("#topTitles");
 const timelineGraph = document.querySelector("#timelineGraph");
 const timelineList = document.querySelector("#timelineList");
 const focusScore = document.querySelector("#focusScore");
-const focusStreak = document.querySelector("#focusStreak");
 const productiveTime = document.querySelector("#productiveTime");
 const nonProductiveTime = document.querySelector("#nonProductiveTime");
 const productiveSplit = document.querySelector("#productiveSplit");
@@ -91,7 +90,6 @@ function renderSummary(summary) {
   const totalToday = today.productive + today.nonproductive;
 
   focusScore.textContent = summary.focus_score;
-  focusStreak.textContent = `${summary.focus_streak} days`;
   productiveTime.textContent = formatMinutes(today.productive);
   nonProductiveTime.textContent = formatMinutes(today.nonproductive);
 

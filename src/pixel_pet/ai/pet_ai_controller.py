@@ -187,6 +187,11 @@ class PetAiController:
         self._random = random.Random()
         self._logger = logger or print
         self._model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        # Hard cap on every OpenAI call so a slow request can't stall the
+        # tracker poll thread (decisions run synchronously on that thread).
+        self._request_timeout = float(os.getenv("OPENAI_TIMEOUT", "6"))
+        # Remember the last few spoken lines so the cat doesn't repeat itself.
+        self._recent_messages: deque[str] = deque(maxlen=6)
         self._client = self._create_openai_client()
 
         # Background thread: makes the cat say random things even when idle.
@@ -245,12 +250,19 @@ class PetAiController:
             title_lower = payload.get("title", "").lower()
             title_display = payload.get("title", "something")
             process_name = payload.get("process_name", "").lower()
+            url = payload.get("url", "") or ""
+
+            # Our own pet window ("Desktop Cat") isn't a tab the user chose to open —
+            # never treat the companion app as a distraction or burn an API call on it.
+            if self._is_self_window(title_lower):
+                return None
 
             context = FocusState.get_context()
             attention_state = self._classify_window_attention(
                 title_lower, process_name,
                 context.get("task", ""),
                 context.get("goal", ""),
+                url,
             )
 
             if attention_state == "nonproductive":
@@ -265,14 +277,19 @@ class PetAiController:
                 # Per-title cooldown — the same page won't interrupt again for
                 # 5 minutes, but switching to a different distracting title
                 # (Netflix → YouTube, YouTube home → F1 video) fires immediately.
-                title_key = self._distraction_key(title_lower, process_name)
+                title_key = self._distraction_key(title_lower, process_name, url)
                 if now - self._interrupted_titles.get(title_key, 0.0) < self._SAME_TITLE_COOLDOWN:
                     return None
 
                 self._interrupted_titles[title_key] = now
                 self._last_any_interruption_time = now
                 self._active_distraction_key = title_key
-                message = self._get_nudge_message(title_display)
+                message = self._get_nudge_message(
+                    title_display,
+                    context.get("task", ""),
+                    context.get("goal", ""),
+                    url,
+                )
                 return {
                     "behavior_key": "distraction_nudge",
                     "message": message,
@@ -317,43 +334,49 @@ class PetAiController:
             if time.time() - self._last_any_interruption_time < 90:
                 return
             self._last_any_interruption_time = time.time()
+            message = self._fresh_message(self._random.choice(IDLE_CHATTER), IDLE_CHATTER)
 
-        message = self._random.choice(IDLE_CHATTER)
         self._logger(f"[pet-ai] Idle chatter: {message}")
         self.pet_handler.show_speech(message, duration=8.0)
 
     # ── Focus-mode nudge via OpenAI ───────────────────────────────────────────
 
-    def _get_nudge_message(self, title_display: str) -> str:
-        """Return a gentle, playful nudge. Calls OpenAI if available; falls back to pool."""
+    def _get_nudge_message(self, title_display: str, task: str = "", goal: str = "", url: str = "") -> str:
+        """Return a gentle, playful nudge that knows what the user *should* be doing.
+
+        Calls OpenAI when available (with the focus task/goal/URL for context) and
+        falls back to a static pool. Either way, avoids repeating a recent line.
+        """
         now = time.time()
 
         if not self._client:
-            return self._random.choice(NUDGE_FALLBACKS)
+            return self._fresh_message(self._random.choice(NUDGE_FALLBACKS), NUDGE_FALLBACKS)
 
         if now - self.last_ai_request_time < self.ai_request_cooldown_seconds:
             self._logger("[pet-ai] Nudge message rate-limited; using fallback.")
-            return self._random.choice(NUDGE_FALLBACKS)
+            return self._fresh_message(self._random.choice(NUDGE_FALLBACKS), NUDGE_FALLBACKS)
 
         try:
             self._logger(f"[pet-ai] Requesting nudge message for: {title_display}")
+            user_context = {"opened": title_display, "url": url, "task": task, "goal": goal}
             response = self._client.responses.create(
                 model=self._model,
                 input=[
                     {
                         "role": "system",
                         "content": (
-                            "You are a small, caring desktop cat companion. "
-                            "Someone is trying to focus and just opened something distracting. "
-                            "Write ONE gentle, warm nudge — maximum 12 words. "
-                            "Be playful and kind, not judgmental or harsh. "
-                            "Sound like a friend, not a critic. "
-                            "No quotes, no emojis. Just the line."
+                            "You are a small, caring desktop cat companion watching over "
+                            "someone who is trying to focus. They just opened something that "
+                            "looks off-task. Write ONE gentle, warm nudge of at most 12 words. "
+                            "When you know their task, gently tie the nudge back to it "
+                            "(e.g. 'the login page misses you'). "
+                            "Be playful and kind, never judgmental or harsh. "
+                            "No quotes, no emojis. Just the single line."
                         ),
                     },
                     {
                         "role": "user",
-                        "content": f"They just opened: {title_display}",
+                        "content": json.dumps(user_context),
                     },
                 ],
             )
@@ -362,45 +385,61 @@ class PetAiController:
 
             if text:
                 self._logger(f"[pet-ai] Nudge message: {text}")
+                self._recent_messages.append(text.lower())
                 return text
 
         except Exception as error:
             self._logger(f"[pet-ai] Nudge message failed: {error}")
 
-        return self._random.choice(NUDGE_FALLBACKS)
+        return self._fresh_message(self._random.choice(NUDGE_FALLBACKS), NUDGE_FALLBACKS)
+
+    def _fresh_message(self, candidate: str, pool) -> str:
+        """Pick a line that wasn't said recently, so the cat doesn't repeat itself."""
+        if candidate.lower() not in self._recent_messages:
+            self._recent_messages.append(candidate.lower())
+            return candidate
+
+        options = [line for line in pool if line.lower() not in self._recent_messages]
+        chosen = self._random.choice(options) if options else candidate
+        self._recent_messages.append(chosen.lower())
+        return chosen
 
     # ── Window classification ─────────────────────────────────────────────────
 
-    def _classify_window_attention(self, title, process_name, task="", goal=""):
+    def _classify_window_attention(self, title, process_name, task="", goal="", url=""):
         # Game / entertainment launchers — always block, no context check needed.
         if any(keyword in process_name for keyword in DISTRACTION_PROCESS_KEYWORDS):
             return "nonproductive"
 
+        # The URL (when we have it) is far more reliable than the page title, so
+        # fold it into the haystack used by every keyword check below.
+        haystack = f"{title} {url}".lower()
+
         # When the session has a task + goal, ask the LLM whether this window is
         # needed for that specific work before falling back to keyword matching.
         if task and goal and self._client:
-            result = self._classify_with_session_context(title, process_name, task, goal)
+            result = self._classify_with_session_context(title, process_name, task, goal, url)
             if result:
                 return result
 
         # Keyword-based fallback (no LLM, or LLM returned nothing).
-        if any(keyword in title for keyword in DISTRACTION_KEYWORDS):
+        if any(keyword in haystack for keyword in DISTRACTION_KEYWORDS):
             return "nonproductive"
 
-        if any(keyword in title for keyword in AMBIGUOUS_MEDIA_KEYWORDS):
+        if any(keyword in haystack for keyword in AMBIGUOUS_MEDIA_KEYWORDS):
             return self._classify_ambiguous_title(title, process_name)
 
         return "productive"
 
-    def _classify_with_session_context(self, title, process_name, task, goal):
+    def _classify_with_session_context(self, title, process_name, task, goal, url=""):
         """Ask the LLM whether this window is actually needed for the user's task/goal."""
-        cache_key = f"{process_name[:20]}|{title[:60]}|{task[:40]}|{goal[:40]}"
+        cache_key = f"{process_name[:20]}|{title[:60]}|{url[:80]}|{task[:40]}|{goal[:40]}"
         if cache_key in self._context_classification_cache:
             return self._context_classification_cache[cache_key]
 
         try:
             self._logger(
-                f"[pet-ai] Context check: '{title}' vs task='{task[:30]}'"
+                f"[pet-ai] Context check: '{title}' ({url[:40]}) vs task='{task[:30]}'"
             )
             response = self._client.responses.create(
                 model=self._model,
@@ -408,11 +447,28 @@ class PetAiController:
                     {
                         "role": "system",
                         "content": (
-                            "You are a productivity assistant. "
-                            "Decide if a window or browser tab is genuinely needed "
-                            "for the user's current task and goal. "
-                            "Return strict JSON: {\"needed\": true} or {\"needed\": false}. "
-                            "When in doubt, lean toward needed=true to avoid false positives."
+                            "You are a focus assistant inside a desktop pet app called "
+                            "'Desktop Cat'. The user is in a focus session with a stated task "
+                            "and goal. Decide whether the current window/tab is plausibly part "
+                            "of that work.\n\n"
+                            "Principles:\n"
+                            "1. Window titles and URLs are often vague, generic or incomplete "
+                            "(e.g. 'Home', 'skill', 'watch'). Missing keywords is NOT evidence "
+                            "of distraction — it just means the data is insufficient.\n"
+                            "2. Judge by TOPIC and CONCEPTUAL relevance, not literal keyword "
+                            "overlap. A page about a sub-topic, feature, tool or concept of the "
+                            "goal is on-task even if it never names the goal. Example: goal "
+                            "'learn Claude Code' + a video titled 'skills' is on-task, because "
+                            "skills are a Claude Code feature.\n"
+                            "3. Learning material — tutorials, docs, videos, articles, forums, "
+                            "Q&A — on anything reasonably connected to the task is productive.\n"
+                            "4. Mark needed=false ONLY when the content is clearly unrelated "
+                            "leisure: entertainment, social media, gaming, sports, shopping or "
+                            "memes with no plausible link to the task.\n"
+                            "5. If the evidence is insufficient or ambiguous, ALWAYS choose "
+                            "needed=true. Prefer the URL over the title. The app's own windows "
+                            "('Desktop Cat', 'Pixel Pets') are never distractions.\n\n"
+                            "Return strict JSON: {\"needed\": true|false, \"reason\": \"<=10 words\"}."
                         ),
                     },
                     {
@@ -421,6 +477,7 @@ class PetAiController:
                             "task":         task,
                             "goal":         goal,
                             "window_title": title,
+                            "url":          url,
                             "process":      process_name,
                         }),
                     },
@@ -429,7 +486,9 @@ class PetAiController:
             parsed = json.loads(response.output_text.strip())
             result = "productive" if parsed.get("needed", True) else "nonproductive"
             self._context_classification_cache[cache_key] = result
-            self._logger(f"[pet-ai] Context result: {result}")
+            self._logger(
+                f"[pet-ai] Context result: {result} ({parsed.get('reason', '')})"
+            )
             return result
 
         except Exception as error:
@@ -515,25 +574,34 @@ class PetAiController:
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _distraction_key(self, title: str, process_name: str) -> str:
+    # Titles belonging to this companion app itself — never a distraction.
+    _SELF_WINDOW_HINTS = ("desktop cat",)
+
+    def _is_self_window(self, title_lower: str) -> bool:
+        return any(hint in title_lower for hint in self._SELF_WINDOW_HINTS)
+
+    def _distraction_key(self, title: str, process_name: str, url: str = "") -> str:
         """Return a stable key for this distraction so per-title cooldowns work correctly.
 
         Process-name matches use the process name; keyword matches use the matched keyword
         so that different pages on the same service (YouTube home vs F1 video) each get
-        their own key and can each trigger an alert independently.
+        their own key and can each trigger an alert independently. The URL is folded in
+        so the key reflects the actual page, not just its (often vague) title.
         """
+        haystack = f"{title} {url}".lower()
         for kw in DISTRACTION_PROCESS_KEYWORDS:
             if kw in process_name:
                 return f"proc:{kw}"
         for kw in DISTRACTION_KEYWORDS:
-            if kw in title:
+            if kw in haystack:
                 return f"kw:{kw}"
-        # Ambiguous (YouTube etc.) — use the full title so every different video/search
-        # can fire its own alert rather than sharing one 5-minute cooldown for all of YouTube.
+        # Ambiguous (YouTube etc.) — key on the URL when we have it (so each video/search
+        # gets its own cooldown), otherwise the title.
+        identifier = (url or title)[:80]
         for kw in AMBIGUOUS_MEDIA_KEYWORDS:
-            if kw in title:
-                return f"title:{title[:80]}"
-        return f"title:{title[:80]}"
+            if kw in haystack:
+                return f"page:{identifier}"
+        return f"page:{identifier}"
 
     def _can_perform(self, action_key, force=False):
         now = time.time()
@@ -590,4 +658,12 @@ class PetAiController:
             return None
 
         self._logger(f"[pet-ai] OpenAI client enabled with model {self._model}.")
-        return OpenAI(api_key=api_key)
+        try:
+            return OpenAI(
+                api_key=api_key,
+                timeout=self._request_timeout,
+                max_retries=1,
+            )
+        except TypeError:
+            # Older SDKs without timeout/max_retries kwargs.
+            return OpenAI(api_key=api_key)

@@ -1,19 +1,34 @@
-import pygame
-import win32gui
-import win32con
-import win32api
 import os
-import threading
 import queue
+import threading
 import time
+from pathlib import Path
+
+import pygame
+
+from src.pixel_pet.platform_support import create_overlay
 
 
-# Pure black (0,0,0) is the win32 transparency color key — never use it in bubble colors.
-_TRANSPARENT   = (0, 0, 0)
-_BUBBLE_BG     = (255, 255, 255)  # white
-_BUBBLE_BORDER = (18, 18, 18)     # near-black (not pure black)
-_BUBBLE_TEXT   = (12, 12, 12)     # near-black (not pure black)
-_BUBBLE_TAIL   = (255, 255, 255)
+# Pure black (0,0,0) is the win32 transparency colour key — never use it in
+# bubble/cat colours, or those pixels would be punched transparent on Windows.
+_TRANSPARENT = (0, 0, 0)
+
+# Flat background drawn on platforms without per-pixel transparency (macOS/Linux),
+# so the pet shows inside a clean light card instead of a black box.
+_STAGE_BG = (244, 246, 249)
+
+# ── Pixel-art speech bubble palette ────────────────────────────────────────────
+_BUBBLE_BG     = (255, 255, 255)   # panel fill
+_BUBBLE_BORDER = (24, 26, 33)      # chunky dark outline (not pure black)
+_BUBBLE_SHADOW = (181, 188, 200)   # hard pixel drop-shadow
+_BUBBLE_TEXT   = (24, 26, 33)
+_BUBBLE_ACCENT = (16, 185, 129)    # emerald top strip — matches the web theme
+
+# Size of one "pixel" block for the blocky corners/border, in screen pixels.
+_PX = 4
+
+# How many steps form each blocky corner (a 2-step staircase reads as pixel-art).
+_CORNER_STEPS = 2
 
 
 class Pet:
@@ -39,6 +54,9 @@ class Pet:
         self.running = False
         self.thread = None
         self._stop_requested = threading.Event()
+
+        # Resolve audio directory relative to the pet's asset folder
+        self._audio_dir = Path(idle_path).parent / "audio"
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -141,50 +159,88 @@ class Pet:
             )
             pygame.display.set_caption("Desktop Cat")
 
-            hwnd = pygame.display.get_wm_info()["window"]
+            # Cross-platform window setup: borderless, on-top, transparent if able.
+            overlay = create_overlay(self.width, self.height)
+            overlay.apply(self.start_pos, _TRANSPARENT)
 
-            styles = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
-            win32gui.SetWindowLong(
-                hwnd,
-                win32con.GWL_EXSTYLE,
-                styles | win32con.WS_EX_LAYERED,
-            )
-            win32gui.SetLayeredWindowAttributes(
-                hwnd,
-                win32api.RGB(*_TRANSPARENT),
-                0,
-                win32con.LWA_COLORKEY,
-            )
-            win32gui.SetWindowPos(
-                hwnd,
-                win32con.HWND_TOPMOST,
-                self.start_pos[0],
-                self.start_pos[1],
-                0,
-                0,
-                win32con.SWP_NOSIZE,
+            # On Windows the colour key makes _TRANSPARENT punch through; elsewhere
+            # we paint a flat card so the cat isn't sitting on a black rectangle.
+            background_color = (
+                overlay.transparent_color
+                if overlay.transparent_color is not None
+                else _STAGE_BG
             )
 
+            # ── Audio setup ───────────────────────────────────────────────────
+            meow_sound = None
+            purr_sound = None
+            purr_looping = False
+
+            if pygame.mixer.get_init():
+                meow_path = self._audio_dir / "meow.mp3"
+                purr_path = self._audio_dir / "purring.mp3"
+                try:
+                    if meow_path.exists():
+                        meow_sound = pygame.mixer.Sound(str(meow_path))
+                        meow_sound.set_volume(0.65)
+                    if purr_path.exists():
+                        purr_sound = pygame.mixer.Sound(str(purr_path))
+                        purr_sound.set_volume(0.4)
+                except pygame.error:
+                    pass
+
+            def _play_sound_for(asset_path: str) -> None:
+                """Auto-play the appropriate sound for an animation path."""
+                nonlocal purr_looping
+                basename = os.path.basename(asset_path)
+
+                # Stop any looping purr before starting a new sound
+                if purr_sound and purr_looping:
+                    purr_sound.stop()
+                    purr_looping = False
+
+                if "meow" in basename:
+                    if meow_sound:
+                        meow_sound.play()
+                elif "sleeping" in basename:
+                    if purr_sound:
+                        purr_sound.play(loops=-1)   # loop until animation ends
+                        purr_looping = True
+                elif any(kw in basename for kw in ("licking", "yawning", "idle")):
+                    if purr_sound:
+                        purr_sound.play()           # one-shot gentle purr
+
+            def _stop_looping_sound() -> None:
+                nonlocal purr_looping
+                if purr_sound and purr_looping:
+                    purr_sound.stop()
+                    purr_looping = False
+
+            # ── Animation / font setup ────────────────────────────────────────
             frames = self._load_frames(self.idle_path)
             clock  = pygame.time.Clock()
             frame  = 0
             timer  = 0.0
 
-            dragging      = False
-            drag_offset_x = 0
-            drag_offset_y = 0
+            dragging = False
 
             temporary_animation_end_time = None
 
-            # Pixel font: Fixedsys is a classic Windows bitmap pixel font.
-            # pygame.font.Font(None, size) is pygame's own pixel bitmap — reliable fallback.
-            speech_font = pygame.font.SysFont("Fixedsys", 16) or pygame.font.Font(None, 17)
+            speech_font = self._load_pixel_font()
 
             speech_text     = None
             speech_end_time = 0.0
 
+            # Periodically re-pin the window on top (cheap; ~once a second).
+            next_top_reassert = 0.0
+
             while self.running and not self._stop_requested.is_set():
                 dt = clock.tick(120) / 1000
+
+                now = time.time()
+                if now >= next_top_reassert:
+                    overlay.reassert_on_top()
+                    next_top_reassert = now + 1.0
 
                 # Process commands
                 while not self.command_queue.empty():
@@ -205,6 +261,7 @@ class Pet:
 
                     elif command["type"] == "play":
                         self.current_path = command["path"]
+                        _play_sound_for(command["path"])
                         frames = self._load_frames(command["path"])
                         frame  = 0
                         timer  = 0.0
@@ -213,12 +270,15 @@ class Pet:
                     elif command["type"] == "speech":
                         speech_text     = command["text"]
                         speech_end_time = time.time() + command["duration"]
+                        if meow_sound:
+                            meow_sound.play()
 
                     elif command["type"] == "hide_speech":
                         speech_text = None
 
                 # Return to idle when a temporary animation finishes
                 if temporary_animation_end_time and time.time() >= temporary_animation_end_time:
+                    _stop_looping_sound()
                     frames = self._load_frames(self.idle_path)
                     frame  = 0
                     timer  = 0.0
@@ -237,23 +297,15 @@ class Pet:
                         self.running = False
 
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        dragging      = True
-                        drag_offset_x, drag_offset_y = pygame.mouse.get_pos()
+                        dragging = True
+                        overlay.begin_drag()
 
                     if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                         dragging = False
+                        overlay.end_drag()
 
                 if dragging:
-                    mx, my = win32api.GetCursorPos()
-                    win32gui.SetWindowPos(
-                        hwnd,
-                        win32con.HWND_TOPMOST,
-                        mx - drag_offset_x,
-                        my - drag_offset_y,
-                        0,
-                        0,
-                        win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE,
-                    )
+                    overlay.update_drag()
 
                 # Advance animation frame
                 timer += dt
@@ -262,7 +314,7 @@ class Pet:
                     frame = (frame + 1) % len(frames)
 
                 # Draw
-                screen.fill(_TRANSPARENT)
+                screen.fill(background_color)
 
                 current = frames[frame]
                 rect = current.get_rect(center=(self.width // 2, self.height // 2))
@@ -276,65 +328,113 @@ class Pet:
         finally:
             self.running = False
             self._stop_requested.set()
+            if pygame.mixer.get_init():
+                pygame.mixer.stop()
             pygame.quit()
 
-    # ── Speech bubble renderer ────────────────────────────────────────────────
+    # ── Fonts ──────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _load_pixel_font():
+        """Pick a crisp monospace face for the blocky pixel bubble."""
+        # Prefer classic bitmap/monospace faces; fall back to pygame's own font.
+        for name in ("Fixedsys", "Perfect DOS VGA 437", "Consolas",
+                     "Courier New", "DejaVu Sans Mono", "Menlo", "Monaco"):
+            try:
+                font = pygame.font.SysFont(name, 20)
+                if font:
+                    return font
+            except Exception:
+                continue
+        return pygame.font.Font(None, 22)
+
+    # ── Pixel-art speech bubble renderer ────────────────────────────────────────
 
     def _draw_speech_bubble(self, screen, text: str, font) -> None:
-        """Render a rounded speech bubble with a tail in the upper portion of the window."""
+        """Draw a retro, pixel-art speech bubble in the upper part of the window."""
         padding = 12
         margin  = 22
+        accent_h = _PX * 2                     # emerald title strip height
         max_text_w = self.width - margin * 2 - padding * 2
-        bx = margin
-        by = 10
 
-        # Word-wrap
-        words = text.split()
-        lines: list[str] = []
-        current_line: list[str] = []
-
-        for word in words:
-            test = " ".join(current_line + [word])
-            if font.size(test)[0] <= max_text_w:
-                current_line.append(word)
-            else:
-                if current_line:
-                    lines.append(" ".join(current_line))
-                current_line = [word]
-
-        if current_line:
-            lines.append(" ".join(current_line))
-
+        lines = self._wrap_text(text, font, max_text_w)
         if not lines:
             return
 
         line_height = font.get_linesize() + 2
+        bx = margin
+        by = 12
         bw = self.width - margin * 2
-        bh = len(lines) * line_height + padding * 2
+        bh = len(lines) * line_height + padding * 2 + accent_h
 
-        # Bubble body
-        bubble_rect = pygame.Rect(bx, by, bw, bh)
-        pygame.draw.rect(screen, _BUBBLE_BG,     bubble_rect, border_radius=12)
-        pygame.draw.rect(screen, _BUBBLE_BORDER, bubble_rect, width=2, border_radius=12)
+        # 1. Hard pixel drop-shadow, offset down-right (no blur).
+        self._fill_blocky(screen, _BUBBLE_SHADOW, bx + _PX, by + _PX, bw, bh)
 
-        # Tail triangle pointing down toward cat center
-        tail_cx = self.width // 2
-        tail_top = by + bh
-
-        pygame.draw.polygon(
-            screen,
-            _BUBBLE_TAIL,
-            [
-                (tail_cx - 9, tail_top),
-                (tail_cx + 9, tail_top),
-                (tail_cx,     tail_top + 13),
-            ],
+        # 2. Chunky dark border, then the white panel inset inside it.
+        self._fill_blocky(screen, _BUBBLE_BORDER, bx, by, bw, bh)
+        self._fill_blocky(
+            screen, _BUBBLE_BG,
+            bx + _PX, by + _PX, bw - 2 * _PX, bh - 2 * _PX,
         )
-        # Tail border lines (left and right sides only — not the closing base)
-        pygame.draw.line(screen, _BUBBLE_BORDER, (tail_cx - 9, tail_top),  (tail_cx, tail_top + 13), 2)
-        pygame.draw.line(screen, _BUBBLE_BORDER, (tail_cx + 9, tail_top),  (tail_cx, tail_top + 13), 2)
 
-        # Text
+        # 3. Emerald accent strip along the top (inside the border).
+        screen.fill(
+            _BUBBLE_ACCENT,
+            pygame.Rect(bx + _PX * 3, by + _PX, bw - _PX * 6, accent_h),
+        )
+
+        # 4. Blocky tail stepping down toward the cat.
+        tail_cx  = self.width // 2
+        tail_top = by + bh
+        self._draw_blocky_tail(screen, tail_cx, tail_top)
+
+        # 5. Pixel text (antialiasing OFF for crisp edges).
+        text_top = by + _PX + accent_h + padding - 4
         for i, line in enumerate(lines):
-            surf = font.render(line, True, _BUBBLE_TEXT)
-            screen.blit(surf, (bx + padding, by + padding + i * line_height))
+            surf = font.render(line, False, _BUBBLE_TEXT)
+            screen.blit(surf, (bx + padding, text_top + i * line_height))
+
+    @staticmethod
+    def _wrap_text(text, font, max_width):
+        lines: list[str] = []
+        current: list[str] = []
+        for word in text.split():
+            test = " ".join(current + [word])
+            if font.size(test)[0] <= max_width:
+                current.append(word)
+            else:
+                if current:
+                    lines.append(" ".join(current))
+                current = [word]
+        if current:
+            lines.append(" ".join(current))
+        return lines
+
+    @staticmethod
+    def _fill_blocky(screen, color, x, y, w, h, steps=_CORNER_STEPS):
+        """Filled rectangle with a stepped, staircase pixel-art corner."""
+        x, y, w, h = int(x), int(y), int(w), int(h)
+        inset = steps * _PX
+
+        # Central full-width block...
+        screen.fill(color, pygame.Rect(x, y + inset, w, h - 2 * inset))
+        # ...plus a staircase of bands shrinking toward the top and bottom edges.
+        for k in range(steps):
+            side = (steps - k) * _PX
+            screen.fill(color, pygame.Rect(x + side, y + k * _PX, w - 2 * side, _PX))
+            screen.fill(color, pygame.Rect(x + side, y + h - (k + 1) * _PX, w - 2 * side, _PX))
+
+    @staticmethod
+    def _draw_blocky_tail(screen, cx, top):
+        """Stepped pixel tail (stacked shrinking blocks) with shadow + border."""
+        steps = 3
+        for i in range(steps):
+            half = (steps - i) * _PX
+            row_y = top - _PX + i * _PX
+            # shadow
+            screen.fill(_BUBBLE_SHADOW, pygame.Rect(cx - half + _PX, row_y + _PX, half * 2, _PX))
+            # border
+            screen.fill(_BUBBLE_BORDER, pygame.Rect(cx - half, row_y, half * 2, _PX))
+            # fill (inset by one pixel block on each side)
+            if half - _PX > 0:
+                screen.fill(_BUBBLE_BG, pygame.Rect(cx - half + _PX, row_y, (half - _PX) * 2, _PX))

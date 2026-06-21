@@ -1,273 +1,280 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pixel Pets Focus</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-  </head>
-  <body>
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-avatar">
-          <img
-            src="{{ url_for('assets', filename='nila/sit-idle-tail/sitidletail1.png') }}"
-            alt="Nila"
-          >
-          <span class="brand-status" aria-hidden="true"></span>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pixel Pets Focus</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-avatar">
+        <img src="{{ url_for('assets', filename='nila/sit-idle-tail/sitidletail1.png') }}" alt="Nila">
+        <span class="brand-status" aria-hidden="true"></span>
+      </div>
+      <div class="brand-text">
+        <strong>Pixel Pets</strong>
+        <span>Focus companion</span>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="Main navigation">
+      <div class="nav-section">Main</div>
+      <a class="active" href="/">
+        <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="6" height="6" rx="1.5" />
+          <rect x="10" y="2" width="6" height="6" rx="1.5" />
+          <rect x="2" y="10" width="6" height="6" rx="1.5" />
+          <rect x="10" y="10" width="6" height="6" rx="1.5" />
+        </svg>
+        Overview
+      </a>
+      <a href="/focus">
+        <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="9" r="6.5" />
+          <circle cx="9" cy="9" r="2.5" />
+        </svg>
+        Focus Session
+      </a>
+      <a href="/reminders">
+        <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 2a5 5 0 00-5 5v2.5L2.5 12h13L14 9.5V7a5 5 0 00-5-5z" />
+          <path d="M7.5 14.5a1.5 1.5 0 003 0" />
+        </svg>
+        Reminders
+      </a>
+      <a href="/events">
+        <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="9" r="6.5" />
+          <polyline points="9 5.5 9 9 11.5 10.5" />
+        </svg>
+        Event Logs
+      </a>
+      <div class="nav-section">Coming soon</div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 6l7-3.5L16 6v.5L9 10 2 6.5V6z" />
+          <path d="M2 10l7 3.5 7-3.5M2 13.5l7 3.5 7-3.5" />
+        </svg>
+        Infinite Memory
+        <span class="nav-badge">Soon</span>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="5" cy="5" r="2" />
+          <circle cx="13" cy="5" r="2" />
+          <circle cx="9" cy="14" r="2" />
+          <line x1="7" y1="5" x2="11" y2="5" />
+          <line x1="6" y1="7" x2="8" y2="12" />
+          <line x1="12" y1="7" x2="10" y2="12" />
+        </svg>
+        Multiagent Model
+        <span class="nav-badge">Soon</span>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 4 2 9 6 14" />
+          <polyline points="12 4 16 9 12 14" />
+        </svg>
+        API Integration
+        <span class="nav-badge">Soon</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <p class="sidebar-version">Pixel Pets · v0.1</p>
+    </div>
+  </aside>
+
+  <main class="shell">
+    <!-- Topbar -->
+    <section class="topbar">
+      <div class="headline-block">
+        <p class="eyebrow" id="clockDate">Loading...</p>
+        <h1 id="greeting">Good morning</h1>
+      </div>
+      <div class="topbar-right">
+        <div class="clock-widget">
+          <span class="clock-time" id="clockTime">--:--</span>
+          <span class="clock-date" id="clockDateSub">---</span>
         </div>
-        <div class="brand-text">
-          <strong>Pixel Pets</strong>
-          <span>Focus companion</span>
+        <div class="goal-ring-card">
+          <div class="goal-ring" id="goalRing" role="progressbar" aria-label="Daily goal progress" aria-valuemin="0"
+            aria-valuemax="100" aria-valuenow="0">
+            <span id="goalRingText">0%</span>
+          </div>
+          <div class="status-pill" id="goalStatus">Loading...</div>
         </div>
       </div>
+    </section>
 
-      <nav class="nav" aria-label="Main navigation">
-        <div class="nav-section">Main</div>
-        <a class="active" href="/">
-          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="2" width="6" height="6" rx="1.5"/>
-            <rect x="10" y="2" width="6" height="6" rx="1.5"/>
-            <rect x="2" y="10" width="6" height="6" rx="1.5"/>
-            <rect x="10" y="10" width="6" height="6" rx="1.5"/>
-          </svg>
-          Overview
-        </a>
-        <a href="/focus">
-          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="9" cy="9" r="6.5"/><circle cx="9" cy="9" r="2.5"/>
-          </svg>
-          Focus Session
-        </a>
-        <a href="/events">
-          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="9" cy="9" r="6.5"/>
-            <polyline points="9 5.5 9 9 11.5 10.5"/>
-          </svg>
-          Event Logs
-        </a>
-        <div class="nav-section">Coming soon</div>
-        <div class="nav-item">
-          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 2.5C6.5 2.5 4.5 4.5 4.5 7c0 2 1.2 3.8 3 4.7L9 15l1.5-3.3c1.8-.9 3-2.7 3-4.7 0-2.5-2-4.5-4.5-4.5z"/>
-          </svg>
-          Pet Reactions
-          <span class="nav-badge">Soon</span>
-        </div>
-        <div class="nav-item">
-          <svg class="nav-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="9" cy="9" r="2.5"/>
-            <path d="M9 2v1.5M9 14.5V16M2 9h1.5M14.5 9H16M4.2 4.2l1 1M12.8 12.8l1 1M4.2 13.8l1-1M12.8 5.2l1-1"/>
-          </svg>
-          Settings
-          <span class="nav-badge">Soon</span>
-        </div>
-      </nav>
-
-      <div class="sidebar-footer">
-        <p class="sidebar-version">Pixel Pets · v0.1</p>
-      </div>
-    </aside>
-
-    <main class="shell">
-      <!-- Topbar -->
-      <section class="topbar">
-        <div class="headline-block">
-          <p class="eyebrow" id="clockDate">Loading...</p>
-          <h1 id="greeting">Good morning</h1>
-        </div>
-        <div class="topbar-right">
-          <div class="clock-widget">
-            <span class="clock-time" id="clockTime">--:--</span>
-            <span class="clock-date" id="clockDateSub">---</span>
-          </div>
-          <div class="goal-ring-card">
-            <div
-              class="goal-ring"
-              id="goalRing"
-              role="progressbar"
-              aria-label="Daily goal progress"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow="0"
-            >
-              <span id="goalRingText">0%</span>
-            </div>
-            <div class="status-pill" id="goalStatus">Loading...</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Metric cards -->
-      <section class="metric-grid" aria-label="Focus metrics">
-        <article class="metric-card score-card">
-          <div class="metric-card-header">
-            <span class="label">Focus Score</span>
-            <div class="metric-icon" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="7 1 8.8 5 13 5.5 10 8.5 10.8 13 7 10.8 3.2 13 4 8.5 1 5.5 5.2 5"/>
-              </svg>
-            </div>
-          </div>
-          <strong id="focusScore">0</strong>
-          <small>Productive share of tracked time.</small>
-        </article>
-
-        <article class="metric-card">
-          <div class="metric-card-header">
-            <span class="label">Focus Streak</span>
-            <div class="metric-icon" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M7 1.5C4.8 4.5 3 5.5 3 7.8a4 4 0 008 0C11 5.5 9.2 4.5 7 1.5z"/>
-              </svg>
-            </div>
-          </div>
-          <strong id="focusStreak">0 days</strong>
-          <small>Goal completed on consecutive days.</small>
-        </article>
-
-        <article class="metric-card">
-          <div class="metric-card-header">
-            <span class="label">Productive Time</span>
-            <div class="metric-icon" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="7" cy="7" r="5.5"/>
-                <polyline points="7 3.5 7 7 9.5 8.5"/>
-              </svg>
-            </div>
-          </div>
-          <strong id="productiveTime">0m</strong>
-          <small id="productiveSplit">No tracked activity yet.</small>
-        </article>
-
-        <article class="metric-card">
-          <div class="metric-card-header">
-            <span class="label">Non Productive</span>
-            <div class="metric-icon" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="7" cy="7" r="5.5"/>
-                <line x1="4" y1="7" x2="10" y2="7"/>
-              </svg>
-            </div>
-          </div>
-          <strong id="nonProductiveTime">0m</strong>
-          <small>Time in distracting windows.</small>
-        </article>
-      </section>
-
-      <!-- Goal + Session panels -->
-      <section class="content-grid">
-        <article class="panel goal-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Daily intent</p>
-              <h2>Today's goal</h2>
-            </div>
-          </div>
-
-          <form class="goal-form" id="goalForm">
-            <label>
-              Goal
-              <input id="goalText" type="text" maxlength="90" placeholder="Finish the project report" required>
-            </label>
-            <label>
-              Hours
-              <input id="goalHours" type="number" min="0.5" max="14" step="0.5" value="4" required>
-            </label>
-            <button type="submit">Save</button>
-          </form>
-
-          <div class="goal-summary" id="goalSummary">Set a goal to guide today's focus.</div>
-
-          <div class="goal-progress" id="goalProgress">
-            <div class="goal-progress-meta">
-              <span>Progress</span>
-              <strong id="goalProgressText">0%</strong>
-            </div>
-            <div
-              class="goal-progress-track"
-              id="goalProgressBar"
-              role="progressbar"
-              aria-label="Daily goal progress"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow="0"
-            >
-              <span id="goalProgressFill"></span>
-            </div>
-            <p id="goalProgressDetail">Set a goal to track progress.</p>
-          </div>
-        </article>
-
-        <article class="panel session-panel session-cta-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Focus session</p>
-              <h2>Start a session</h2>
-            </div>
-          </div>
-          <p style="color: var(--ink-2); font-size: 13px; line-height: 1.6; margin: 0 0 18px;">
-            Tell Nila what you're working on — she'll watch your tabs and keep you on track with context-aware alerts.
-          </p>
-          <a href="/focus" class="focus-start-btn" style="text-decoration:none; display:inline-flex;">
-            <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="9" cy="9" r="7"/><circle cx="9" cy="9" r="2.5"/>
+    <!-- Metric cards -->
+    <section class="metric-grid" aria-label="Focus metrics">
+      <article class="metric-card score-card">
+        <div class="metric-card-header">
+          <span class="label">Focus Score</span>
+          <div class="metric-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.55"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="7 1 8.8 5 13 5.5 10 8.5 10.8 13 7 10.8 3.2 13 4 8.5 1 5.5 5.2 5" />
             </svg>
-            Open Focus Session
-          </a>
-        </article>
-      </section>
-
-      <!-- Analytics panels -->
-      <section class="analytics-grid">
-        <article class="panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Window usage</p>
-              <h2>Most active tabs</h2>
-            </div>
-          </div>
-          <div class="chart-list" id="topTitles"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Work rhythm</p>
-              <h2>Today's activity graph</h2>
-            </div>
-          </div>
-          <div class="timeline-graph" id="timelineGraph"></div>
-        </article>
-      </section>
-
-      <!-- Activity history -->
-      <section class="panel history-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">History</p>
-            <h2>Productive vs non-productive time</h2>
-          </div>
-          <select id="historyRange" aria-label="History range">
-            <option value="7">Last 7 days</option>
-            <option value="14">Last 14 days</option>
-          </select>
-        </div>
-        <div class="history-list" id="historyList"></div>
-      </section>
-
-      <!-- Detailed timeline -->
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Activity timeline</p>
-            <h2>Window and status log</h2>
           </div>
         </div>
-        <div class="timeline-list" id="timelineList"></div>
-      </section>
-    </main>
+        <strong id="focusScore">0</strong>
+        <small>Productive share of tracked time.</small>
+      </article>
 
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
-  </body>
+
+      <article class="metric-card">
+        <div class="metric-card-header">
+          <span class="label">Productive Time</span>
+          <div class="metric-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.55"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="7" cy="7" r="5.5" />
+              <polyline points="7 3.5 7 7 9.5 8.5" />
+            </svg>
+          </div>
+        </div>
+        <strong id="productiveTime">0m</strong>
+        <small id="productiveSplit">No tracked activity yet.</small>
+      </article>
+
+      <article class="metric-card">
+        <div class="metric-card-header">
+          <span class="label">Non Productive</span>
+          <div class="metric-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.55"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="7" cy="7" r="5.5" />
+              <line x1="4" y1="7" x2="10" y2="7" />
+            </svg>
+          </div>
+        </div>
+        <strong id="nonProductiveTime">0m</strong>
+        <small>Time in distracting windows.</small>
+      </article>
+    </section>
+
+    <!-- Goal + Session panels -->
+    <section class="content-grid">
+      <article class="panel goal-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Daily intent</p>
+            <h2>Today's goal</h2>
+          </div>
+        </div>
+
+        <form class="goal-form" id="goalForm">
+          <label>
+            Goal
+            <input id="goalText" type="text" maxlength="90" placeholder="Finish the project report" required>
+          </label>
+          <label>
+            Hours
+            <input id="goalHours" type="number" min="0.5" max="14" step="0.5" value="4" required>
+          </label>
+          <button type="submit">Save</button>
+        </form>
+
+        <div class="goal-summary" id="goalSummary">Set a goal to guide today's focus.</div>
+
+        <div class="goal-progress" id="goalProgress">
+          <div class="goal-progress-meta">
+            <span>Progress</span>
+            <strong id="goalProgressText">0%</strong>
+          </div>
+          <div class="goal-progress-track" id="goalProgressBar" role="progressbar" aria-label="Daily goal progress"
+            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span id="goalProgressFill"></span>
+          </div>
+          <p id="goalProgressDetail">Set a goal to track progress.</p>
+        </div>
+      </article>
+
+      <article class="panel session-panel session-cta-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Focus session</p>
+            <h2>Start a session</h2>
+          </div>
+        </div>
+        <p style="color: var(--ink-2); font-size: 13px; line-height: 1.6; margin: 0 0 18px;">
+          Tell Nila what you're working on — she'll watch your tabs and keep you on track with context-aware alerts.
+        </p>
+        <a href="/focus" class="focus-start-btn" style="text-decoration:none; display:inline-flex;">
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="9" r="7" />
+            <circle cx="9" cy="9" r="2.5" />
+          </svg>
+          Open Focus Session
+        </a>
+      </article>
+    </section>
+
+    <!-- Analytics panels -->
+    <section class="analytics-grid">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Window usage</p>
+            <h2>Most active tabs</h2>
+          </div>
+        </div>
+        <div class="chart-list" id="topTitles"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Work rhythm</p>
+            <h2>Today's activity graph</h2>
+          </div>
+        </div>
+        <div class="timeline-graph" id="timelineGraph"></div>
+      </article>
+    </section>
+
+    <!-- Activity history -->
+    <section class="panel history-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">History</p>
+          <h2>Productive vs non-productive time</h2>
+        </div>
+        <select id="historyRange" aria-label="History range">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+        </select>
+      </div>
+      <div class="history-list" id="historyList"></div>
+    </section>
+
+    <!-- Detailed timeline -->
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Activity timeline</p>
+          <h2>Window and status log</h2>
+        </div>
+      </div>
+      <div class="timeline-list" id="timelineList"></div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+
 </html>

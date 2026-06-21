@@ -1,11 +1,5 @@
-import os
-
-import win32api
-import win32con
-import win32gui
-import win32process
-
 from src.pixel_pet.activity.events import ActivityEvent, ActivityEventType
+from src.pixel_pet.platform_support import get_active_window, get_browser_url
 from src.pixel_pet.trackers.base_tracker import BaseTracker
 
 
@@ -16,9 +10,9 @@ class ActiveWindowTracker(BaseTracker):
         self._last_window = None
 
     def poll(self):
-        hwnd = win32gui.GetForegroundWindow()
-        title = win32gui.GetWindowText(hwnd)
-        process_id, process_name = self._get_process_details(hwnd)
+        window = get_active_window()
+        hwnd = window.get("hwnd")
+        title = window.get("title", "")
         current_window = (hwnd, title)
 
         if current_window == self._last_window:
@@ -26,32 +20,22 @@ class ActiveWindowTracker(BaseTracker):
 
         self._last_window = current_window
 
+        process_name = window.get("process_name", "Unknown application")
+
+        # Only read the URL when the window actually changed (it's a ~0.5s UI
+        # Automation call), and only for real browsers.
+        url = get_browser_url(process_name)
+
         return [
             ActivityEvent(
                 event_type=ActivityEventType.ACTIVE_WINDOW_CHANGED,
                 source=self.name,
                 payload={
                     "hwnd": hwnd,
-                    "process_id": process_id,
+                    "process_id": window.get("process_id"),
                     "process_name": process_name,
                     "title": title,
+                    "url": url,
                 },
             )
         ]
-
-    def _get_process_details(self, hwnd):
-        try:
-            _, process_id = win32process.GetWindowThreadProcessId(hwnd)
-            handle = win32api.OpenProcess(
-                win32con.PROCESS_QUERY_INFORMATION
-                | win32con.PROCESS_VM_READ,
-                False,
-                process_id,
-            )
-            process_path = win32process.GetModuleFileNameEx(handle, 0)
-            win32api.CloseHandle(handle)
-
-            return process_id, os.path.basename(process_path)
-
-        except Exception:
-            return None, "Unknown application"

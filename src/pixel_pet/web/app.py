@@ -8,16 +8,21 @@ import threading
 
 from src.pixel_pet.storage import (
     create_focus_session,
+    create_reminder,
+    deactivate_reminder,
+    delete_reminder,
     end_focus_session,
     get_activity_summary,
     get_daily_goal,
     get_recent_events,
     get_recent_focus_sessions,
+    get_reminders,
     get_session_analytics,
     init_db,
     save_daily_goal,
     save_session_summary,
     start_focus_session,
+    toggle_reminder,
 )
 from src.pixel_pet.pets import (
     get_current_pet_key,
@@ -51,6 +56,10 @@ def create_app():
     @app.get("/events")
     def event_logs():
         return render_template("event_logs.html")
+
+    @app.get("/reminders")
+    def reminders():
+        return render_template("reminders.html")
 
     @app.get("/assets/<path:filename>")
     def assets(filename):
@@ -172,6 +181,45 @@ def create_app():
             save_session_summary(session_id, summary)
         return jsonify({"summary": summary})
 
+    # ── Reminder APIs ─────────────────────────────────────────────────────────
+
+    @app.get("/api/reminders")
+    def api_get_reminders():
+        return jsonify({"reminders": get_reminders()})
+
+    @app.post("/api/reminders")
+    def api_create_reminder():
+        data = request.get_json(force=True)
+        label = data.get("label", "").strip()
+        reminder_type = data.get("reminder_type", "once")
+        remind_at = data.get("remind_at")
+        days_of_week = data.get("days_of_week")
+        time_of_day = data.get("time_of_day")
+
+        if not label:
+            return jsonify({"error": "Label is required."}), 400
+        if reminder_type == "once" and not remind_at:
+            return jsonify({"error": "remind_at is required for one-time reminders."}), 400
+        if reminder_type == "recurring" and (not days_of_week or not time_of_day):
+            return jsonify({"error": "days_of_week and time_of_day required for recurring."}), 400
+
+        reminder = create_reminder(label, reminder_type, remind_at, days_of_week, time_of_day)
+        return jsonify({"reminder": reminder}), 201
+
+    @app.delete("/api/reminders/<int:reminder_id>")
+    def api_delete_reminder(reminder_id):
+        delete_reminder(reminder_id)
+        return jsonify({"deleted": reminder_id})
+
+    @app.patch("/api/reminders/<int:reminder_id>")
+    def api_toggle_reminder(reminder_id):
+        data = request.get_json(force=True)
+        active = bool(data.get("active", True))
+        reminder = toggle_reminder(reminder_id, active)
+        if not reminder:
+            return jsonify({"error": "Not found."}), 404
+        return jsonify({"reminder": reminder})
+
     return app
 
 
@@ -196,7 +244,10 @@ def _generate_session_summary(analytics: dict) -> str | None:
 
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+        try:
+            client = OpenAI(api_key=api_key, timeout=20.0, max_retries=1)
+        except TypeError:
+            client = OpenAI(api_key=api_key)
 
         session = analytics["session"]
         payload = {
